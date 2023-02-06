@@ -1,0 +1,721 @@
+---
+title: "Telco Customer Churn"
+subtitle: "Focused customer retention programs"
+format: 
+  html:
+    toc: true
+    toc-depth: 3
+    toc-title: "Contents"
+    code-fold: show
+    theme: journal
+    code-overflow: wrap
+    code-copy: true
+    toc-float: true
+    anchor-sections: true
+    highlight-style: tango
+    fig-width: 12
+    fig-height: 9
+editor: visual
+---
+
+## Load Libraries and Datasets
+
+```{r}
+#| warning: false
+#| message: false
+
+library(tidyverse)
+library(magrittr)
+library(reactable)
+library(naniar)
+library(ggthemes)
+library(ggcorrplot)
+library(DescTools)
+library(tidymodels)
+library(zoo)
+
+
+```
+
+```{r}
+#| warning: false
+#| message: false
+
+
+# Load datasets
+
+telco_df <- read_csv('WA_Fn-UseC_-Telco-Customer-Churn.csv')
+
+```
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+# structure and data types of the fields
+
+glimpse(telco_df)
+
+
+```
+
+## Data Wrangling
+
+Convert `character` typed data to `factor` except the `customerID` field
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+
+# convert character typed data to factor except the customerID
+
+telco_df %<>%
+  select_if(is.character) %>% 
+  mutate(across(c(where(is.character), -c(customerID)), as.factor))
+```
+
+## Exploratory Data Analysis of the Dataset
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+
+reactable(telco_df, searchable = TRUE, filterable = TRUE, sortable = TRUE, pagination = TRUE)
+
+```
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+
+# brief data summary
+
+summary(telco_df)
+```
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+
+# detailed summary
+
+Desc(telco_df)
+```
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+
+
+# Gender Distribution
+
+telco_df %>% 
+  group_by(gender) %>%
+  summarise(Freq = n()) %>% 
+  mutate(prop = Freq/sum(Freq)) %>% 
+  filter(Freq != 0) %>% 
+  
+  ggplot(mapping = aes(x = 2, y = prop, fill = gender))+
+  geom_bar(width = 1, color = "white", stat = "identity") +
+  xlim(0.5, 2.5) +
+  coord_polar(theta = "y", start = 0) +
+  theme_void() +
+  scale_y_continuous(labels = scales::percent) +
+  geom_text(aes(label = paste0(round(prop*100, 1), "%")), size = 4, position = position_stack(vjust = 0.5)) +
+  scale_fill_manual(values = c("#fc0394","#03adfc")) +
+  #theme(axis.text.x = element_text(angle = 90), legend.position = "top")+
+  labs(title = "Customer Distribution by Gender",
+       x = "",
+       y = "",
+       fill = "") +
+  theme(legend.position = "top") +
+   theme(title = element_text(family = "Sans", face = "bold", size = 16))
+
+
+```
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+
+# Distribution of Churned Customer
+
+
+telco_df %>% 
+  mutate(Churn = case_when(Churn == "No" ~ "Not Churned",
+                            TRUE ~ "Churned")) %>% 
+  group_by(Churn) %>%
+  summarise(Freq = n()) %>% 
+  mutate(prop = Freq/sum(Freq)) %>% 
+  filter(Freq != 0) %>% 
+  
+  ggplot(mapping = aes(x = 2, y = prop, fill = Churn))+
+  geom_bar(width = 1, color = "white", stat = "identity") +
+  xlim(0.5, 2.5) +
+  coord_polar(theta = "y", start = 0) +
+  theme_void() +
+  scale_y_continuous(labels = scales::percent) +
+  geom_text(aes(label = paste0(round(prop*100, 1), "%")), size = 4, position = position_stack(vjust = 0.5)) +
+  scale_fill_manual(values = c('#FF0000', '#0000FF')) +
+  #theme(axis.text.x = element_text(angle = 90), legend.position = "top")+
+  labs(title = 'Distribution of Churned Customer',
+       x = "",
+       y = "",
+       fill = "") +
+  theme(legend.position = "top") +
+   theme(title = element_text(family = "Sans", face = "bold", size = 16))
+
+```
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+
+# Payment Methods used by Customer
+
+
+telco_df %>% 
+  group_by(PaymentMethod) %>% 
+  summarise(Count = n()) %>% 
+  ggplot(aes(x = reorder(PaymentMethod, Count), y = Count)) +
+  geom_bar(stat = "identity", width = 0.3, fill = "steelblue", color = "white") +
+  labs(title = 'Payment Methods used by Customer',
+       x = "Payment Method") +
+  theme(title = element_text(family = "Sans", face = "bold", size = 16),
+        axis.title = element_text(family = "sans", size = 10, face = "plain")) +
+  theme_clean() +
+  scale_y_continuous(labels = scales::comma) +
+  geom_text(aes(label = Count), size = 3.5)
+
+```
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+# Distribution of Customers by Internet Service
+
+telco_df %>% 
+  group_by(InternetService) %>% 
+  summarise(Count = n()) %>% 
+  ggplot(aes(x = reorder(InternetService, Count), y = Count)) +
+  geom_bar(stat = "identity", width = 0.3, fill = "steelblue", color = "white") +
+  labs(title = 'Distribution of Customers by Internet Service',
+       x = "Internet Service") +
+  theme(title = element_text(family = "Sans", face = "bold", size = 16),
+        axis.title = element_text(family = "sans", size = 10, face = "plain")) +
+  theme_clean() +
+  scale_y_continuous(labels = scales::comma) +
+  geom_text(aes(label = Count), size = 3.5)
+
+```
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+# Distribution of Customer by Phone service
+
+telco_df %>% 
+  group_by(PhoneService) %>%
+  summarise(Freq = n()) %>% 
+  mutate(prop = Freq/sum(Freq)) %>% 
+  filter(Freq != 0) %>% 
+  
+  ggplot(mapping = aes(x = 2, y = prop, fill = PhoneService))+
+  geom_bar(width = 1, color = "white", stat = "identity") +
+  xlim(0.5, 2.5) +
+  coord_polar(theta = "y", start = 0) +
+  theme_void() +
+  scale_y_continuous(labels = scales::percent) +
+  geom_text(aes(label = paste0(round(prop*100, 1), "%")), size = 4, position = position_stack(vjust = 0.5)) +
+  scale_fill_manual(values = c('#FF0000', '#0000FF')) +
+  #theme(axis.text.x = element_text(angle = 90), legend.position = "top")+
+  labs(title = 'Distribution of Customer by \nPhone Service',
+       x = "",
+       y = "",
+       fill = "") +
+  theme(legend.position = "top") +
+   theme(title = element_text(family = "Sans", face = "bold", size = 16))
+
+```
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+# Distribution of Customer by Paperless Billing
+
+telco_df %>% 
+  group_by(PaperlessBilling) %>%
+  summarise(Freq = n()) %>% 
+  mutate(prop = Freq/sum(Freq)) %>% 
+  filter(Freq != 0) %>% 
+  
+  ggplot(mapping = aes(x = 2, y = prop, fill = PaperlessBilling))+
+  geom_bar(width = 1, color = "white", stat = "identity") +
+  xlim(0.5, 2.5) +
+  coord_polar(theta = "y", start = 0) +
+  theme_void() +
+  scale_y_continuous(labels = scales::percent) +
+  geom_text(aes(label = paste0(round(prop*100, 1), "%")), size = 4, position = position_stack(vjust = 0.5)) +
+  scale_fill_manual(values = c('#FF0000', '#0000FF')) +
+  #theme(axis.text.x = element_text(angle = 90), legend.position = "top")+
+  labs(title = 'Distribution of Customer by \nPaperless Billing',
+       x = "",
+       y = "",
+       fill = "") +
+  theme(legend.position = "top") +
+   theme(title = element_text(family = "Sans", face = "bold", size = 16))
+
+```
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+# Distribution of Customers by Contract
+
+telco_df %>% 
+  group_by(Contract) %>% 
+  summarise(Count = n()) %>% 
+  ggplot(aes(x = reorder(Contract, Count), y = Count)) +
+  geom_bar(stat = "identity", width = 0.3, fill = "steelblue", color = "white") +
+  labs(title = 'Distribution of Customers by Contract',
+       x = "Contract Type") +
+  theme(title = element_text(family = "Sans", face = "bold", size = 16),
+        axis.title = element_text(family = "sans", size = 10, face = "plain")) +
+  theme_clean() +
+  scale_y_continuous(labels = scales::comma) +
+  geom_text(aes(label = Count), size = 3.5)
+
+```
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+# Distribution of Customer by Online Security
+
+telco_df %>% 
+  group_by(OnlineSecurity) %>%
+  summarise(Freq = n()) %>% 
+  mutate(prop = Freq/sum(Freq)) %>% 
+  filter(Freq != 0) %>% 
+  
+  ggplot(mapping = aes(x = 2, y = prop, fill = OnlineSecurity))+
+  geom_bar(width = 1, color = "white", stat = "identity") +
+  xlim(0.5, 2.5) +
+  coord_polar(theta = "y", start = 0) +
+  theme_void() +
+  scale_y_continuous(labels = scales::percent) +
+  geom_text(aes(label = paste0(round(prop*100, 1), "%")), size = 4, position = position_stack(vjust = 0.5)) +
+  scale_fill_manual(values = c('#FF0000', 'tomato', 'darkorange')) +
+  #theme(axis.text.x = element_text(angle = 90), legend.position = "top")+
+  labs(title = 'Distribution of Customer by \nOnline Security',
+       x = "",
+       y = "",
+       fill = "") +
+  theme(legend.position = "top") +
+   theme(title = element_text(family = "Sans", face = "bold", size = 16))
+
+```
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+
+# Proportion of Churn by Gender
+
+
+telco_df %>% 
+  mutate(Churn = case_when(Churn == "No" ~ "Not Churned",
+                            TRUE ~ "Churned")) %>% 
+  group_by(gender, Churn) %>%
+  summarise(Count = n()) %>% 
+  mutate(Prop = Count/sum(Count)) %>% 
+  ggplot(aes(x = reorder(gender, Prop), y = Prop, fill = Churn)) +
+  geom_bar(stat = "identity", width = 0.3, color = "white", position = "fill") +
+  labs(title = 'Proportion of Churn by Gender',
+       x = "",
+       y = "") +
+   scale_fill_manual(values = c('#FF0000', '#0000FF')) +
+  theme(title = element_text(family = "Sans", face = "bold", size = 16),
+        axis.title = element_text(family = "sans", size = 10, face = "plain")) +
+  theme_clean() +
+  scale_y_continuous(labels = scales::percent) +
+  geom_text(aes(label = paste0(round(Prop*100,1),"%")), size = 3.5, position = position_fill(vjust = 0.5))
+
+```
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+
+# Proportion of Churn by PaymentMethod
+
+
+telco_df %>% 
+  mutate(Churn = case_when(Churn == "No" ~ "Not Churned",
+                            TRUE ~ "Churned")) %>% 
+  group_by(PaymentMethod, Churn) %>%
+  summarise(Count = n()) %>% 
+  mutate(Prop = Count/sum(Count)) %>% 
+  ggplot(aes(x = reorder(PaymentMethod, Prop), y = Prop, fill = Churn)) +
+  geom_bar(stat = "identity", width = 0.5, color = "white", position = "fill") +
+  labs(title = 'Proportion of Churn by Payment Method',
+       x = "",
+       y = "") +
+   scale_fill_manual(values = c('#FF0000', '#0000FF')) +
+  theme(title = element_text(family = "Sans", face = "bold", size = 16),
+        axis.title = element_text(family = "sans", size = 10, face = "plain")) +
+  theme_clean() +
+  scale_y_continuous(labels = scales::percent) +
+  geom_text(aes(label = paste0(round(Prop*100,1),"%")), size = 3.5, position = position_fill(vjust = 0.5))
+
+```
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+
+# Proportion of Churn by Contract Type
+
+
+telco_df %>% 
+  mutate(Churn = case_when(Churn == "No" ~ "Not Churned",
+                            TRUE ~ "Churned")) %>% 
+  group_by(Contract, Churn) %>%
+  summarise(Count = n()) %>% 
+  mutate(Prop = Count/sum(Count)) %>% 
+  ggplot(aes(x = reorder(Contract, Prop), y = Prop, fill = Churn)) +
+  geom_bar(stat = "identity", width = 0.5, color = "white", position = "fill") +
+  labs(title = 'Proportion of Churn by Contract Type',
+       x = "",
+       y = "") +
+   scale_fill_manual(values = c('#FF0000', '#0000FF')) +
+  theme(title = element_text(family = "Sans", face = "bold", size = 16),
+        axis.title = element_text(family = "sans", size = 10, face = "plain")) +
+  theme_clean() +
+  scale_y_continuous(labels = scales::percent) +
+  geom_text(aes(label = paste0(round(Prop*100,1),"%")), size = 3.5, position = position_fill(vjust = 0.5))
+
+```
+
+# Modelling
+
+## Data Quality
+
+Check dataframe for `NAs`
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+
+any(is.na(telco_df))
+```
+
+-   No `NA` is found. The dataset is complete without any missing values.
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+# split data to train and test set
+
+set.seed(1234)
+
+split <- telco_df %>% 
+  select(-customerID) %>% 
+  initial_split(prop = 0.75, strata = Churn) # 75% training set | 25% testing set
+
+df_train <- split %>% 
+  training()
+
+df_test <- split %>% 
+  testing()
+
+```
+
+## Model Recipe
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+
+rec <- recipe(Churn ~ ., data = df_train)
+
+# add preprocessing
+
+prepro <- rec %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_other(all_nominal_predictors()) %>% 
+  step_filter_missing(all_nominal_predictors(),threshold = 0) %>% 
+  prep()
+
+prepro
+
+
+```
+
+## Define the model with parsnip
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+## Logistic Regression
+
+lr <- logistic_reg(
+  mode = "classification"
+) %>% 
+  set_engine("glm")
+
+
+## Nearest Neighbor
+
+knn <- nearest_neighbor(
+  mode = "classification"
+) %>% 
+  set_engine("kknn")
+
+## Random Forest
+
+rf <- rand_forest(mode = "classification") %>% 
+  set_engine("ranger", importance='impurity')
+
+## Gradient Boost
+
+gb <- boost_tree(mode = "classification") %>% 
+  set_engine("xgboost")
+```
+
+## Define models workflow
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+## Logistic Regression
+
+lr_wf <- workflow() %>% 
+  add_recipe(prepro) %>% 
+  add_model(lr)
+
+
+## Nearest Neighbor
+
+knn_wf <- workflow() %>% 
+  add_recipe(prepro) %>% 
+  add_model(knn)
+
+## Random Forest
+
+rf_wf <- workflow() %>% 
+  add_recipe(prepro) %>% 
+  add_model(rf)
+
+
+## Gradient Boost
+
+gb_wf <- workflow() %>% 
+  add_recipe(prepro) %>% 
+  add_model(gb)
+```
+
+## Obtaining Predictions
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+set.seed(1234)
+
+## Logistic Regression
+
+lr_pred <- lr_wf %>% 
+  fit(df_train) %>% 
+  predict(df_test) %>% 
+  bind_cols(df_test)
+
+
+## Nearest Neighbor
+
+knn_pred <- knn_wf %>% 
+  fit(df_train) %>% 
+  predict(df_test) %>% 
+  bind_cols(df_test)
+
+## Random Forest
+
+rf_pred <- rf_wf %>% 
+  fit(df_train) %>% 
+  predict(df_test) %>% 
+  bind_cols(df_test)
+
+
+## Gradient Boost
+
+gb_pred <- gb_wf %>% 
+  fit(df_train) %>% 
+  predict(df_test) %>% 
+  bind_cols(df_test)
+
+```
+
+## Evaluating model performance
+
+-   `kap`: Kappa
+-   `sens`: Sensitivity
+-   `spec`: Specificity
+-   `f_meas`: F1
+-   `mcc`: Matthews correlation coefficient
+
+### Logistic Regression
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+lr_pred %>% 
+  conf_mat(truth = Churn, estimate = .pred_class) %>% 
+  summary()
+
+
+```
+
+### Nearest Neighbor
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+knn_pred %>% 
+  conf_mat(truth = Churn, estimate = .pred_class) %>% 
+  summary()
+
+
+```
+
+### Random Forest
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+rf_pred %>% 
+  conf_mat(truth = Churn, estimate = .pred_class) %>% 
+  summary()
+
+
+```
+
+### Gradient Boost
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+gb_pred %>% 
+  conf_mat(truth = Churn, estimate = .pred_class) %>% 
+  summary()
+
+
+```
+
+The random forest seems to be better off going by the `sensitivity` and the `specificity` metrics.
+
+## Random Forest Roc Curve
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+
+## Random Forest
+
+prob_preds <- rf_wf %>% 
+  fit(df_train) %>% 
+  predict(df_test, type = "prob") %>% 
+  bind_cols(df_test)
+
+
+threshold_df <- prob_preds %>% 
+  roc_curve(truth = Churn, estimate = .pred_No)
+
+threshold_df %>% 
+  autoplot()
+
+
+roc_auc(prob_preds, truth = Churn, estimate = .pred_No)
+```
+
+## Variable Importance Plot
+
+Relative variable importance plot
+
+```{r}
+#| warning: false
+#| message: false
+#| comment: ""
+
+
+final_rf_model <-
+  rf_wf %>%
+  fit(data = df_train)
+
+final_rf_model
+
+
+final_rf_model %>% 
+  pull_workflow_fit()
+
+## variable importance plot
+
+library(vip)
+
+final_rf_model %>%
+  extract_fit_parsnip() %>%
+  vip()
+
+
+```
